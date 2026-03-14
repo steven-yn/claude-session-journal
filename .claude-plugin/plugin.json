@@ -1,5 +1,5 @@
 {
-  "name": "claude-memoir-journal",
+  "name": "memoir-journal",
   "description": "Generate daily/weekly/monthly markdown journals from Claude Code sessions with key insights extraction",
   "author": {
     "name": "sung-yeon"
