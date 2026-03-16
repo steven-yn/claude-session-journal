@@ -120,16 +120,40 @@ def try_load_cache(session_id: str) -> dict | None:
     return None
 
 
-def collect(start: datetime, end: datetime, exclude_projects: list[str]) -> dict:
+def try_load_summary(session_id: str) -> dict | None:
+    if not validate_session_id(session_id):
+        return None
+    summary_file = CACHE_DIR / f"{session_id}.summary.json"
+    if summary_file.exists():
+        try:
+            with open(summary_file) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return None
+
+
+def collect(start: datetime, end: datetime, exclude_projects: list[str],
+            check_summary: bool = False) -> dict:
     history_sessions = filter_history(start, end, exclude_projects)
     sessions = []
     total_input = 0
     total_output = 0
+    summary_hit = 0
+    summary_miss = 0
 
     for sid, meta in history_sessions.items():
         cached = try_load_cache(sid)
         if cached:
             cached["displays"] = meta.get("displays", [])
+            if check_summary:
+                summary = try_load_summary(sid)
+                cached["has_summary"] = summary is not None
+                if summary:
+                    cached["summary_data"] = summary
+                    summary_hit += 1
+                else:
+                    summary_miss += 1
             sessions.append(cached)
             total_input += cached.get("token_usage", {}).get("input", 0)
             total_output += cached.get("token_usage", {}).get("output", 0)
@@ -154,6 +178,14 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str]) -> dict
             "conversation_summary": parsed["conversation_summary"],
             "displays": meta.get("displays", []),
         }
+        if check_summary:
+            summary = try_load_summary(sid)
+            session_data["has_summary"] = summary is not None
+            if summary:
+                session_data["summary_data"] = summary
+                summary_hit += 1
+            else:
+                summary_miss += 1
         sessions.append(session_data)
         total_input += parsed["token_usage"]["input"]
         total_output += parsed["token_usage"]["output"]
@@ -164,12 +196,15 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str]) -> dict
     if (end - start).days > 1:
         period = f"{start.strftime('%Y-%m-%d')} ~ {(end - timedelta(days=1)).strftime('%Y-%m-%d')}"
 
-    return {
+    result = {
         "period": period,
         "sessions": sessions,
         "total_tokens": {"input": total_input, "output": total_output},
         "total_sessions": len(sessions),
     }
+    if check_summary:
+        result["summary_stats"] = {"hit": summary_hit, "miss": summary_miss}
+    return result
 
 
 def main() -> None:
@@ -180,6 +215,7 @@ def main() -> None:
     group.add_argument("--month", help="Month (YYYY-MM)")
     parser.add_argument("--format", default="json", choices=["json"])
     parser.add_argument("--exclude", nargs="*", default=[], help="Project paths to exclude")
+    parser.add_argument("--check-summary", action="store_true", help="Check Level 2 summary cache")
     args = parser.parse_args()
 
     if args.date:
@@ -192,7 +228,7 @@ def main() -> None:
         today = datetime.now().strftime("%Y-%m-%d")
         start, end = date_range_for_day(today)
 
-    result = collect(start, end, args.exclude)
+    result = collect(start, end, args.exclude, check_summary=args.check_summary)
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 

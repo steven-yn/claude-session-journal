@@ -19,6 +19,10 @@ DEFAULT_CONFIG = {
     "blog_frontmatter": True,
     "tags_auto_generate": True,
     "exclude_projects": [],
+    "background_summary": True,
+    "summary_model": "haiku",
+    "summary_timeout": 120,
+    "summary_min_queries": 3,
 }
 
 

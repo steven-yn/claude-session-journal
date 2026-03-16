@@ -62,6 +62,8 @@ def parse_session_file(session_file: Path) -> dict:
     end_time: datetime | None = None
     git_branch: str | None = None
     conversation_summary: list[str] = []
+    conversation_blocks: list[dict[str, str]] = []
+    pending_query: str | None = None
 
     with open(session_file) as f:
         for line in f:
@@ -91,9 +93,8 @@ def parse_session_file(session_file: Path) -> dict:
                 content = entry.get("message", {}).get("content", "")
                 if isinstance(content, str) and content.strip():
                     text = content.strip()
-                    if len(text) > 200:
-                        text = text[:200] + "..."
                     user_queries.append(text)
+                    pending_query = text[:200]
 
             elif entry_type == "assistant":
                 msg = entry.get("message", {})
@@ -117,9 +118,17 @@ def parse_session_file(session_file: Path) -> dict:
 
                     elif block.get("type") == "text":
                         text = block.get("text", "")
-                        if text and len(text) > 20:
-                            summary = text[:300] + "..." if len(text) > 300 else text
-                            conversation_summary.append(summary)
+                        if len(conversation_summary) < 10:
+                            if text and len(text) > 50:
+                                summary = text[:300] + "..." if len(text) > 300 else text
+                                conversation_summary.append(summary)
+
+                        if pending_query and text and len(text) >= 50 and len(conversation_blocks) < 30:
+                            conversation_blocks.append({
+                                "query": pending_query,
+                                "response": text[:500],
+                            })
+                            pending_query = None
 
     return {
         "user_queries": user_queries[:20],
@@ -129,5 +138,6 @@ def parse_session_file(session_file: Path) -> dict:
         "start_time": start_time.isoformat() if start_time else None,
         "end_time": end_time.isoformat() if end_time else None,
         "git_branch": git_branch or "unknown",
-        "conversation_summary": conversation_summary[:10],
+        "conversation_summary": conversation_summary,
+        "conversation_blocks": conversation_blocks,
     }
