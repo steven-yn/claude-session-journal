@@ -129,6 +129,7 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str]) -> dict
     for sid, meta in history_sessions.items():
         cached = try_load_cache(sid)
         if cached:
+            cached["displays"] = meta.get("displays", [])
             sessions.append(cached)
             total_input += cached.get("token_usage", {}).get("input", 0)
             total_output += cached.get("token_usage", {}).get("output", 0)
@@ -151,6 +152,7 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str]) -> dict
             "files_modified": parsed["files_modified"],
             "token_usage": parsed["token_usage"],
             "conversation_summary": parsed["conversation_summary"],
+            "displays": meta.get("displays", []),
         }
         sessions.append(session_data)
         total_input += parsed["token_usage"]["input"]
