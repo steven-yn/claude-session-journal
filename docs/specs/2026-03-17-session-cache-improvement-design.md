@@ -33,6 +33,7 @@
 {
   "session_id": "uuid",
   "project": "/path/to/project",
+  "project_name": "project-name",
   "summarized_at": "2026-03-17T15:30:00+09:00",
   "summary": {
     "one_line": "한줄 요약",
@@ -96,6 +97,34 @@ Hook → session_cache.py (10초 내 완료)
 **대화 내용 추출 범위** (session_cache.py 확장):
 - `user_queries`: 기존과 동일 (최대 20개)
 - `conversation_blocks`: 새로 추가 — 사용자 질문 + 어시스턴트 텍스트 응답을 페어로 추출 (도구 호출 결과 제외)
+  - 최대 30개 페어
+  - 각 query 최대 200자, 각 response 최대 500자로 절삭
+  - 50자 미만의 짧은 응답은 제외
+
+**프롬프트 전달 방식:**
+
+조합된 프롬프트가 OS argument length limit을 초과할 수 있으므로, `claude` CLI 호출 시 프롬프트를 stdin으로 파이프한다:
+
+```
+echo "프롬프트" | claude -p --model haiku
+```
+
+**동시 실행 방지:**
+
+Stop 훅과 SessionEnd 훅이 거의 동시에 발생할 수 있다. 같은 session_id에 대해 두 개의 백그라운드 프로세스가 충돌하지 않도록:
+- `session_summarize.py` 시작 시 lock 파일(`{session_id}.summary.lock`)을 생성
+- lock 파일이 이미 존재하면 즉시 종료
+- 완료 또는 실패 시 lock 파일 삭제
+
+**에러 로깅:**
+
+백그라운드 프로세스의 실패를 진단할 수 있도록 `~/.claude-memoir-journal/cache/summarize.log`에 에러를 append한다:
+
+```
+[2026-03-17T15:30:00] session_id=abc123 error=claude_cli_timeout
+```
+
+로그 파일은 최대 1000줄을 유지하고, 초과 시 오래된 줄부터 삭제한다.
 
 ### 3. 저널 생성 파이프라인 개선
 
@@ -158,8 +187,8 @@ Level 1 캐시 있음? ──yes──→ 저널 생성 시 data-analyst 실행
 | `claude` CLI 없음/인증 만료 | Level 1만 저장, 에러 로그 기록 |
 | 120초 타임아웃 초과 | 프로세스 종료, Level 1으로 폴백 |
 | 응답이 JSON 파싱 불가 | Level 1만 유지, 다음 저널 생성 시 재분석 |
-| 이미 Level 2 존재 (`/clear` 후 재실행) | 기존 캐시와 병합 |
-| 세션이 너무 짧음 (쿼리 0개) | 요약 스킵 |
+| 이미 Level 2 존재 (`/clear` 후 재실행) | 기존 Level 2 삭제 후 재생성 (병합된 Level 1 기반) |
+| 세션이 너무 짧음 (`summary_min_queries` 미만) | 요약 스킵 |
 
 ### 5. 설정 추가
 
