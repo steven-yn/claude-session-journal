@@ -139,6 +139,9 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str],
     sessions = []
     total_input = 0
     total_output = 0
+    total_input_new = 0
+    total_input_cache_read = 0
+    total_input_cache_write = 0
     summary_hit = 0
     summary_miss = 0
 
@@ -155,8 +158,12 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str],
                 else:
                     summary_miss += 1
             sessions.append(cached)
-            total_input += cached.get("token_usage", {}).get("input", 0)
-            total_output += cached.get("token_usage", {}).get("output", 0)
+            tu = cached.get("token_usage", {})
+            total_input += tu.get("input", 0)
+            total_output += tu.get("output", 0)
+            total_input_new += tu.get("input_new", 0)
+            total_input_cache_read += tu.get("input_cache_read", 0)
+            total_input_cache_write += tu.get("input_cache_write", 0)
             continue
 
         session_file = find_session_file(sid, meta["project"])
@@ -187,8 +194,12 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str],
             else:
                 summary_miss += 1
         sessions.append(session_data)
-        total_input += parsed["token_usage"]["input"]
-        total_output += parsed["token_usage"]["output"]
+        tu = parsed["token_usage"]
+        total_input += tu["input"]
+        total_output += tu["output"]
+        total_input_new += tu.get("input_new", 0)
+        total_input_cache_read += tu.get("input_cache_read", 0)
+        total_input_cache_write += tu.get("input_cache_write", 0)
 
     sessions.sort(key=lambda s: s.get("start_time") or "")
 
@@ -199,7 +210,13 @@ def collect(start: datetime, end: datetime, exclude_projects: list[str],
     result = {
         "period": period,
         "sessions": sessions,
-        "total_tokens": {"input": total_input, "output": total_output},
+        "total_tokens": {
+            "input": total_input,
+            "output": total_output,
+            "input_new": total_input_new,
+            "input_cache_read": total_input_cache_read,
+            "input_cache_write": total_input_cache_write,
+        },
         "total_sessions": len(sessions),
     }
     if check_summary:

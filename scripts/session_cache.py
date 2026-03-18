@@ -45,6 +45,9 @@ def merge_cache(existing: dict, new: dict) -> dict:
     merged_tokens = {
         "input": ex_tokens.get("input", 0) + new_tokens.get("input", 0),
         "output": ex_tokens.get("output", 0) + new_tokens.get("output", 0),
+        "input_new": ex_tokens.get("input_new", 0) + new_tokens.get("input_new", 0),
+        "input_cache_read": ex_tokens.get("input_cache_read", 0) + new_tokens.get("input_cache_read", 0),
+        "input_cache_write": ex_tokens.get("input_cache_write", 0) + new_tokens.get("input_cache_write", 0),
     }
 
     result = dict(new)

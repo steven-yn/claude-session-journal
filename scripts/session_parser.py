@@ -58,6 +58,9 @@ def parse_session_file(session_file: Path) -> dict:
     files_modified: set[str] = set()
     total_input = 0
     total_output = 0
+    input_new = 0
+    input_cache_read = 0
+    input_cache_write = 0
     start_time: datetime | None = None
     end_time: datetime | None = None
     git_branch: str | None = None
@@ -99,10 +102,15 @@ def parse_session_file(session_file: Path) -> dict:
             elif entry_type == "assistant":
                 msg = entry.get("message", {})
                 usage = msg.get("usage", {})
-                total_input += usage.get("input_tokens", 0)
-                total_input += usage.get("cache_read_input_tokens", 0)
-                total_input += usage.get("cache_creation_input_tokens", 0)
-                total_output += usage.get("output_tokens", 0)
+                _new = usage.get("input_tokens", 0)
+                _cache_read = usage.get("cache_read_input_tokens", 0)
+                _cache_write = usage.get("cache_creation_input_tokens", 0)
+                _out = usage.get("output_tokens", 0)
+                total_input += _new + _cache_read + _cache_write
+                total_output += _out
+                input_new += _new
+                input_cache_read += _cache_read
+                input_cache_write += _cache_write
 
                 for block in msg.get("content", []):
                     if not isinstance(block, dict):
@@ -134,7 +142,13 @@ def parse_session_file(session_file: Path) -> dict:
         "user_queries": user_queries[:20],
         "tools_used": dict(tools_used),
         "files_modified": sorted(files_modified),
-        "token_usage": {"input": total_input, "output": total_output},
+        "token_usage": {
+            "input": total_input,
+            "output": total_output,
+            "input_new": input_new,
+            "input_cache_read": input_cache_read,
+            "input_cache_write": input_cache_write,
+        },
         "start_time": start_time.isoformat() if start_time else None,
         "end_time": end_time.isoformat() if end_time else None,
         "git_branch": git_branch or "unknown",
